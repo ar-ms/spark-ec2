@@ -15,7 +15,7 @@ for node in $SLAVES $OTHER_MASTERS; do
 done
 wait
 
-/root/spark-ec2/copy-dir $EPHEMERAL_HDFS/conf
+#/root/spark-ec2/copy-dir $EPHEMERAL_HDFS/conf
 
 NAMENODE_DIR=/mnt/ephemeral-hdfs/dfs/name
 

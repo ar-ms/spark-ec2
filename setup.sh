@@ -82,16 +82,18 @@ if [[ ! $MODULES =~ *scala* ]]; then
 fi
 
 # Install / Init module
-for module in $MODULES; do
-  echo "Initializing $module"
-  module_init_start_time="$(date +'%s')"
-  if [[ -e $module/init.sh ]]; then
-    source $module/init.sh
-  fi
-  module_init_end_time="$(date +'%s')"
-  echo_time_diff "$module init" "$module_init_start_time" "$module_init_end_time"
-  cd /root/spark-ec2  # guard against init.sh changing the cwd
-done
+# for module in $MODULES; do
+#   echo "Initializing $module"
+#   module_init_start_time="$(date +'%s')"
+#   if [[ -e $module/init.sh ]]; then
+#     source $module/init.sh
+#   fi
+#   module_init_end_time="$(date +'%s')"
+#   echo_time_diff "$module init" "$module_init_start_time" "$module_init_end_time"
+#   cd /root/spark-ec2  # guard against init.sh changing the cwd
+# done
+
+cd /root/spark-ec2
 
 # Deploy templates
 # TODO: Move configuring templates to a per-module ?
@@ -101,7 +103,7 @@ echo "Creating local config files..."
 # Copy spark conf by default
 echo "Deploying Spark config files..."
 chmod u+x /root/spark/conf/spark-env.sh
-/root/spark-ec2/copy-dir /root/spark/conf
+#/root/spark-ec2/copy-dir /root/spark/conf
 
 # Setup each module
 for module in $MODULES; do

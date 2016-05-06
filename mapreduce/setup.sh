@@ -8,4 +8,4 @@ done
 wait
 
 chown hadoop:hadoop /mnt/mapreduce -R
-/root/spark-ec2/copy-dir $MAPREDUCE/conf
+#/root/spark-ec2/copy-dir $MAPREDUCE/conf

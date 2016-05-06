@@ -1,6 +1,6 @@
 #!/bin/bash
 
-/root/spark-ec2/copy-dir /etc/ganglia/
+#/root/spark-ec2/copy-dir /etc/ganglia/
 
 # Start gmond everywhere
 /etc/init.d/gmond restart
