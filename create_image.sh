@@ -11,11 +11,10 @@ if [ "$(id -u)" != "0" ]; then
 fi
 
 # eXenSa packets
-sudo yum install -y xmlstarlet
-
+sudo yum install -y zsh blas lapack rsync xmlstarlet
 
 # Dev tools
-sudo yum install -y java-1.7.0-openjdk-devel gcc gcc-c++ ant git
+sudo yum install -y java-1.8.0-openjdk-devel gcc gcc-c++ ant git
 # Perf tools
 sudo yum install -y dstat iotop strace sysstat htop perf
 sudo debuginfo-install -q -y glibc
@@ -154,7 +153,7 @@ echo "Starting Scala installation"
 pushd /root > /dev/null
 SCALA_VERSION="2.10.3"
 echo "Unpacking Scala"
-wget http://s3.amazonaws.com/spark-related-packages/scala-$SCALA_VERSION.tgz
+wget https://s3.amazonaws.com/Tachyon/tachyon-0.8.2-cdh4-bin.tar.gz
 tar xvzf scala-*.tgz > /tmp/spark-ec2_scala.log
 rm scala-*.tgz
 mv `ls -d scala-* | grep -v ec2` scala
