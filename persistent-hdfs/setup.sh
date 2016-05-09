@@ -10,7 +10,7 @@ for node in $SLAVES $OTHER_MASTERS; do
 done
 wait
 
-#/root/spark-ec2/copy-dir $PERSISTENT_HDFS/conf
+/root/spark-ec2/copy-dir $PERSISTENT_HDFS/conf
 
 if [[ ! -e /vol/persistent-hdfs/dfs/name ]] ; then
   echo "Formatting persistent HDFS namenode..."

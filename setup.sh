@@ -103,7 +103,7 @@ echo "Creating local config files..."
 # Copy spark conf by default
 echo "Deploying Spark config files..."
 chmod u+x /root/spark/conf/spark-env.sh
-#/root/spark-ec2/copy-dir /root/spark/conf
+/root/spark-ec2/copy-dir /root/spark/conf
 
 # Setup each module
 for module in $MODULES; do
