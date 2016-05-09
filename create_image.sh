@@ -10,16 +10,14 @@ if [ "$(id -u)" != "0" ]; then
    exit 1
 fi
 
-# eXenSa packets
-sudo yum install -y zsh blas lapack rsync xmlstarlet
-
 # Dev tools
 sudo yum install -y java-1.8.0-openjdk-devel gcc gcc-c++ ant git
+
 # Perf tools
 sudo yum install -y dstat iotop strace sysstat htop perf
 sudo debuginfo-install -q -y glibc
 sudo debuginfo-install -q -y kernel
-sudo yum --enablerepo='*-debug*' install -q -y java-1.7.0-openjdk-debuginfo.x86_64
+sudo yum --enablerepo='*-debug*' install -q -y java-1.8.0-openjdk-debuginfo.x86_64
 
 # PySpark and MLlib deps
 sudo yum install -y  python-matplotlib python-tornado scipy libgfortran
@@ -29,6 +27,14 @@ sudo yum install -y R
 sudo yum install -y pssh
 # Ganglia
 sudo yum install -y ganglia ganglia-web ganglia-gmond ganglia-gmetad
+
+## TODO: CHECKING FOR .AWS FOLDER
+
+###
+# eXenSa packets
+sudo yum install -y zsh blas lapack rsync xmlstarlet
+aws s3 cp s3://exensa/mkl-redist.tgz .
+sudo tar zxf mkl-redist.tgz -C /usr/lib
 
 # Root ssh config
 sudo sed -i 's/PermitRootLogin.*/PermitRootLogin without-password/g' \
@@ -57,7 +63,7 @@ mv apache-maven-3.2.3 /opt/
 
 # Edit bash profile
 echo "export PS1=\"\\u@\\h \\W]\\$ \"" >> ~/.bash_profile
-echo "export JAVA_HOME=/usr/lib/jvm/java-1.7.0" >> ~/.bash_profile
+echo "export JAVA_HOME=/usr/lib/jvm/java-1.8.0" >> ~/.bash_profile
 echo "export M2_HOME=/opt/apache-maven-3.2.3" >> ~/.bash_profile
 echo "export PATH=\$PATH:\$M2_HOME/bin" >> ~/.bash_profile
 
@@ -71,7 +77,7 @@ sudo yum install -y protobuf-compiler cmake openssl-devel
 wget "http://archive.apache.org/dist/hadoop/common/hadoop-2.6.4/hadoop-2.6.4-src.tar.gz"
 tar xvzf hadoop-2.6.4-src.tar.gz
 cd hadoop-2.6.4-src
-mvn package -Pdist,native -DskipTests -Dtar
+mvn clean package -Pdist,native -DskipTests -Dtar -Dmaven.javadoc.skip=true
 sudo mv hadoop-dist/target/hadoop-2.6.4/lib/native/* /root/hadoop-native
 
 # Install Snappy lib (for Hadoop)
@@ -95,7 +101,7 @@ cd /tmp
 aws s3 cp s3://exensa/spark-1.6.1-bin-spark-1.6.1-lgpl.tgz .
 tar -xf spark-1.6.1-bin-spark-1.6.1-lgpl.tgz
 sudo mv spark-1.6.1-bin-spark-1.6.1-lgpl /root/spark
-rm spark-1.6.1-bin-spark-1.6.1-lgpl.tgz
+sudo rm spark-1.6.1-bin-spark-1.6.1-lgpl.tgz
 
 
 # MapReduce
@@ -103,7 +109,7 @@ echo "Starting Mapreduce installation"
 pushd /root > /dev/null
 wget http://s3.amazonaws.com/spark-related-packages/mr1-2.0.0-mr1-cdh4.2.0.tar.gz 
 tar -xvzf mr1-*.tar.gz > /tmp/spark-ec2_mapreduce.log
-rm mr1-*.tar.gz
+sudo rm mr1-*.tar.gz
 mv hadoop-2.0.0-mr1-cdh4.2.0/ mapreduce/
 popd > /dev/null
 
@@ -114,7 +120,7 @@ pushd /root > /dev/null
 wget http://s3.amazonaws.com/spark-related-packages/hadoop-2.0.0-cdh4.2.0.tar.gz
 echo "Unpacking Hadoop"
 tar xvzf hadoop-*.tar.gz > /tmp/spark-ec2_hadoop.log
-rm hadoop-*.tar.gz
+sudo rm hadoop-*.tar.gz
 mv hadoop-2.0.0-cdh4.2.0/ persistent-hdfs/
 # Have single conf dir
 rm -rf /root/persistent-hdfs/etc/hadoop/
@@ -129,7 +135,7 @@ pushd /root > /dev/null
 wget http://s3.amazonaws.com/spark-related-packages/hadoop-2.0.0-cdh4.2.0.tar.gz  
 echo "Unpacking Hadoop"
 tar xvzf hadoop-*.tar.gz > /tmp/spark-ec2_hadoop.log
-rm hadoop-*.tar.gz
+sudo rm hadoop-*.tar.gz
 mv hadoop-2.0.0-cdh4.2.0/ ephemeral-hdfs/
 # Have single conf dir
 rm -rf /root/ephemeral-hdfs/etc/hadoop/
@@ -141,9 +147,9 @@ popd > /dev/null
 # TACHYON
 echo "Starting Tachyon installation"
 pushd /root > /dev/null
-get https://s3.amazonaws.com/Tachyon/tachyon-$TACHYON_VERSION-cdh4-bin.tar.gz
+wget https://s3.amazonaws.com/Tachyon/tachyon-0.8.2-cdh4-bin.tar.gz
 tar xvzf tachyon-*.tar.gz > /tmp/spark-ec2_tachyon.log
-rm tachyon-*.tar.gz
+sudo rm tachyon-*.tar.gz
 mv `ls -d tachyon-*` tachyon
 popd > /dev/null
 
@@ -153,9 +159,9 @@ echo "Starting Scala installation"
 pushd /root > /dev/null
 SCALA_VERSION="2.10.3"
 echo "Unpacking Scala"
-wget https://s3.amazonaws.com/Tachyon/tachyon-0.8.2-cdh4-bin.tar.gz
+wget http://s3.amazonaws.com/spark-related-packages/scala-$SCALA_VERSION.tgz 
 tar xvzf scala-*.tgz > /tmp/spark-ec2_scala.log
-rm scala-*.tgz
+sudo rm scala-*.tgz
 mv `ls -d scala-* | grep -v ec2` scala
 popd > /dev/null
 
