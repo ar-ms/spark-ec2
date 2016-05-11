@@ -95,6 +95,7 @@ chmod a+x /usr/bin/realpath
 ###########################################################################################
 ### INSTALL ALL
 
+###
 # SPARK
 echo "Starting Spark installation"
 cd /tmp
@@ -103,57 +104,35 @@ tar -xf spark-1.6.1-bin-spark-1.6.1-lgpl.tgz
 sudo mv spark-1.6.1-bin-spark-1.6.1-lgpl /root/spark
 sudo rm spark-1.6.1-bin-spark-1.6.1-lgpl.tgz
 
-
-# MapReduce
-echo "Starting Mapreduce installation"
-pushd /root > /dev/null
-wget http://s3.amazonaws.com/spark-related-packages/mr1-2.0.0-mr1-cdh4.2.0.tar.gz 
-tar -xvzf mr1-*.tar.gz > /tmp/spark-ec2_mapreduce.log
-sudo rm mr1-*.tar.gz
-mv hadoop-2.0.0-mr1-cdh4.2.0/ mapreduce/
-popd > /dev/null
-
-
+###
 # Persistent HDFS
 echo "Starting persistent HDFS installation"
 pushd /root > /dev/null
-wget http://s3.amazonaws.com/spark-related-packages/hadoop-2.0.0-cdh4.2.0.tar.gz
+wget http://s3.amazonaws.com/spark-related-packages/hadoop-2.4.0.tar.gz
 echo "Unpacking Hadoop"
 tar xvzf hadoop-*.tar.gz > /tmp/spark-ec2_hadoop.log
-sudo rm hadoop-*.tar.gz
-mv hadoop-2.0.0-cdh4.2.0/ persistent-hdfs/
+rm hadoop-*.tar.gz
+mv hadoop-2.4.0/ persistent-hdfs/
 # Have single conf dir
 rm -rf /root/persistent-hdfs/etc/hadoop/
 ln -s /root/persistent-hdfs/conf /root/persistent-hdfs/etc/hadoop
-cp /root/hadoop-native/* /root/persistent-hdfs/lib/native/
 popd > /dev/null
 
-
+####
 # Ephemeral HDFS
 echo "Starting Ephemeral HDFS installation"
 pushd /root > /dev/null
-wget http://s3.amazonaws.com/spark-related-packages/hadoop-2.0.0-cdh4.2.0.tar.gz  
+wget http://s3.amazonaws.com/spark-related-packages/hadoop-2.4.0.tar.gz
 echo "Unpacking Hadoop"
 tar xvzf hadoop-*.tar.gz > /tmp/spark-ec2_hadoop.log
-sudo rm hadoop-*.tar.gz
-mv hadoop-2.0.0-cdh4.2.0/ ephemeral-hdfs/
+rm hadoop-*.tar.gz
+mv hadoop-2.4.0/ ephemeral-hdfs/
 # Have single conf dir
 rm -rf /root/ephemeral-hdfs/etc/hadoop/
 ln -s /root/ephemeral-hdfs/conf /root/ephemeral-hdfs/etc/hadoop
-cp /root/hadoop-native/* /root/ephemeral-hdfs/lib/native/
 popd > /dev/null
 
-
-# TACHYON
-echo "Starting Tachyon installation"
-pushd /root > /dev/null
-wget https://s3.amazonaws.com/Tachyon/tachyon-0.8.2-cdh4-bin.tar.gz
-tar xvzf tachyon-*.tar.gz > /tmp/spark-ec2_tachyon.log
-sudo rm tachyon-*.tar.gz
-mv `ls -d tachyon-*` tachyon
-popd > /dev/null
-
-
+####
 # SCALA INSTALLATION
 echo "Starting Scala installation"
 pushd /root > /dev/null
@@ -179,26 +158,3 @@ chown -R nobody:nobody /mnt/ganglia/rrds
 # Post-package installation : Symlink /var/lib/ganglia/rrds to /mnt/ganglia/rrds
 rmdir /var/lib/ganglia/rrds
 ln -s /mnt/ganglia/rrds /var/lib/ganglia/rrds
-
-# RStudio Installation
-echo "Starting Rstudio installation"
-# download rstudio 
-wget http://download2.rstudio.org/rstudio-server-rhel-0.99.446-x86_64.rpm
-sudo yum install --nogpgcheck -y rstudio-server-rhel-0.99.446-x86_64.rpm
-# restart rstudio 
-rstudio-server restart 
-# add user for rstudio, user needs to supply password later on
-adduser rstudio
-# make sure that the temp dirs exist and can be written to by any user
-# otherwise this will create a conflict for the rstudio user
-function create_temp_dirs {
-  location=$1
-  if [[ ! -e $location ]]; then
-    mkdir -p $location
-  fi
-  chmod a+w $location
-}
-create_temp_dirs /mnt/spark
-create_temp_dirs /mnt2/spark
-create_temp_dirs /mnt3/spark
-create_temp_dirs /mnt4/spark
