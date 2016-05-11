@@ -111,10 +111,10 @@ pushd /root > /dev/null
 wget http://s3.amazonaws.com/spark-related-packages/hadoop-2.4.0.tar.gz
 echo "Unpacking Hadoop"
 tar xvzf hadoop-*.tar.gz > /tmp/spark-ec2_hadoop.log
-rm hadoop-*.tar.gz
+sudo rm hadoop-*.tar.gz
 mv hadoop-2.4.0/ persistent-hdfs/
 # Have single conf dir
-rm -rf /root/persistent-hdfs/etc/hadoop/
+sudo rm -rf /root/persistent-hdfs/etc/hadoop/
 ln -s /root/persistent-hdfs/conf /root/persistent-hdfs/etc/hadoop
 popd > /dev/null
 
@@ -125,10 +125,10 @@ pushd /root > /dev/null
 wget http://s3.amazonaws.com/spark-related-packages/hadoop-2.4.0.tar.gz
 echo "Unpacking Hadoop"
 tar xvzf hadoop-*.tar.gz > /tmp/spark-ec2_hadoop.log
-rm hadoop-*.tar.gz
+sudo rm hadoop-*.tar.gz
 mv hadoop-2.4.0/ ephemeral-hdfs/
 # Have single conf dir
-rm -rf /root/ephemeral-hdfs/etc/hadoop/
+sudo rm -rf /root/ephemeral-hdfs/etc/hadoop/
 ln -s /root/ephemeral-hdfs/conf /root/ephemeral-hdfs/etc/hadoop
 popd > /dev/null
 
