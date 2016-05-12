@@ -16,6 +16,10 @@ export MASTER=`cat /root/spark-ec2/cluster-url`
 export SPARK_SUBMIT_LIBRARY_PATH="$SPARK_SUBMIT_LIBRARY_PATH:/root/ephemeral-hdfs/lib/native/"
 export SPARK_SUBMIT_CLASSPATH="$SPARK_CLASSPATH:$SPARK_SUBMIT_CLASSPATH:/root/ephemeral-hdfs/conf"
 
+export JAVA_LIBRARY_PATH=$JAVA_LIBRARY_PATH:/root/ephemeral-hdfs/lib/native
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/root/ephemeral-hdfs/lib/native
+export SPARK_YARN_USER_ENV="JAVA_LIBRARY_PATH=$JAVA_LIBRARY_PATH,LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
+
 # Bind Spark's web UIs to this machine's public EC2 hostname otherwise fallback to private IP:
 export SPARK_PUBLIC_DNS=`
 wget -q -O - http://169.254.169.254/latest/meta-data/public-hostname ||\

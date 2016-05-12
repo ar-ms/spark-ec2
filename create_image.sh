@@ -73,16 +73,20 @@ source ~/.bash_profile
 sudo mkdir /root/hadoop-native
 cd /tmp
 sudo yum install -y protobuf-compiler cmake openssl-devel
+
+sudo yum install -y zlib-devel snappy-devel
+
 # wget "http://archive.apache.org/dist/hadoop/common/hadoop-2.4.1/hadoop-2.4.1-src.tar.gz"
 wget "http://archive.apache.org/dist/hadoop/common/hadoop-2.6.4/hadoop-2.6.4-src.tar.gz"
 tar xvzf hadoop-2.6.4-src.tar.gz
 cd hadoop-2.6.4-src
-mvn clean package -Pdist,native -DskipTests -Dtar -Dmaven.javadoc.skip=true
+mvn clean package -Pdist,native -DskipTests -Dtar -Dmaven.javadoc.skip=true -Drequire.snappy
 sudo mv hadoop-dist/target/hadoop-2.6.4/lib/native/* /root/hadoop-native
 
 # Install Snappy lib (for Hadoop)
-yum install -y snappy
-ln -sf /usr/lib64/libsnappy.so.1 /root/hadoop-native/.
+# yum install -y snappy
+# ln -sf /usr/lib64/libsnappy.so.1 /root/hadoop-native/.
+sudo cp -a /usr/lib64/libsnappy.so* /root/hadoop-native/
 
 # Create /usr/bin/realpath which is used by R to find Java installations
 # NOTE: /usr/bin/realpath is missing in CentOS AMIs. See
@@ -158,3 +162,6 @@ chown -R nobody:nobody /mnt/ganglia/rrds
 # Post-package installation : Symlink /var/lib/ganglia/rrds to /mnt/ganglia/rrds
 rmdir /var/lib/ganglia/rrds
 ln -s /mnt/ganglia/rrds /var/lib/ganglia/rrds
+
+cp -fa /root/hadoop-native/* /root/ephemeral-hdfs/lib/native/
+cp -fa /root/hadoop-native/* /root/persistent-hdfs/lib/native/
