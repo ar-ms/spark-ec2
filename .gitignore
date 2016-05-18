@@ -36,3 +36,10 @@ nosetests.xml
 
 # JetBrains products
 .idea/
+
+# pem
+*.pem
+
+# tmp files
+*~
+*#
