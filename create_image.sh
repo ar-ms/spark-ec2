@@ -32,9 +32,9 @@ sudo yum install -y ganglia ganglia-web ganglia-gmond ganglia-gmetad
 
 ###
 # eXenSa packets
-sudo yum install -y zsh blas lapack rsync xmlstarlet
+sudo yum install -y zsh blas lapack blas-devel lapack-devel rsync xmlstarlet
 aws s3 cp s3://exensa/mkl-redist.tgz .
-sudo tar zxf mkl-redist.tgz -C /usr/lib
+sudo tar zxf mkl-redist.tgz -C /usr/lib64
 
 # Root ssh config
 sudo sed -i 's/PermitRootLogin.*/PermitRootLogin without-password/g' \
