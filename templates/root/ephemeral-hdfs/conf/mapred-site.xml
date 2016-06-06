@@ -31,4 +31,9 @@
     </description>
   </property>
 
+  <property>
+    <name>mapreduce.application.classpath</name>
+    <value>$HADOOP_HOME/share/hadoop/mapreduce/*,$HADOOP_HOME/share/hadoop/mapreduce/lib/*,$HADOOP_HOME/share/hadoop/tools/lib/*</value>
+  </property>
+
 </configuration>

@@ -9,7 +9,7 @@
 export JAVA_HOME={{java_home}}
 
 # Extra Java CLASSPATH elements.  Optional.
-# export HADOOP_CLASSPATH=
+export HADOOP_CLASSPATH=/root/ephemeral-hdfs/share/hadoop/tools/lib/*
 
 export HADOOP_HOME="/root/ephemeral-hdfs"
 export HADOOP_MAPREDUCE_HOME="/root/mapreduce"
