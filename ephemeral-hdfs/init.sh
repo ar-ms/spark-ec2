@@ -45,6 +45,6 @@ case "$HADOOP_MAJOR_VERSION" in
      echo "ERROR: Unknown Hadoop version"
      return 1
 esac
-#/root/spark-ec2/copy-dir /root/ephemeral-hdfs
+/root/spark-ec2/copy-dir /root/ephemeral-hdfs
 
 popd > /dev/null

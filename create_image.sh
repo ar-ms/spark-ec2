@@ -11,7 +11,8 @@ if [ "$(id -u)" != "0" ]; then
 fi
 
 # Dev tools
-sudo yum install -y java-1.8.0-openjdk-devel gcc gcc-c++ ant git
+sudo yum install -y java-1.8.0-openjdk java-1.8.0-openjdk-devel
+sudo yum install -y gcc gcc-c++ ant git
 
 # Perf tools
 sudo yum install -y dstat iotop strace sysstat htop perf
@@ -19,22 +20,43 @@ sudo debuginfo-install -q -y glibc
 sudo debuginfo-install -q -y kernel
 sudo yum --enablerepo='*-debug*' install -q -y java-1.8.0-openjdk-debuginfo.x86_64
 
+# Set java to java-1.8
+alternatives --set java /usr/lib/jvm/jre-1.8.0-openjdk.x86_64/bin/java
+
 # PySpark and MLlib deps
 sudo yum install -y  python-matplotlib python-tornado scipy libgfortran
-# SparkR deps
-sudo yum install -y R
+
 # Other handy tools
 sudo yum install -y pssh
-# Ganglia
-sudo yum install -y ganglia ganglia-web ganglia-gmond ganglia-gmetad
-
-## TODO: CHECKING FOR .AWS FOLDER
 
 ###
 # eXenSa packets
+###
 sudo yum install -y zsh blas lapack blas-devel lapack-devel rsync xmlstarlet
-aws s3 cp s3://exensa/mkl-redist.tgz .
-sudo tar zxf mkl-redist.tgz -C /usr/lib64
+
+pushd /tmp
+aws s3 cp s3://wikipedia-exensa/mkl-redist.tgz .
+tar zxf mkl-redist.tgz -C /usr/lib64
+rm -f mkl-redist.tgz
+popd
+
+###
+# Alternatives to use libmkl
+##
+alternatives --install /usr/lib64/libblas.so.3 libblas.so.3 /usr/lib64/libmkl_rt.so 100
+alternatives --install /usr/lib64/libblas.so libblas.so /usr/lib64/libmkl_rt.so 100
+alternatives --install /usr/lib64/libblas.so.3.5 libblas.so.3.5 /usr/lib64/libmkl_rt.so 100
+alternatives --install /usr/lib64/libblas.so.3.5.0 libblas.so.3.5.0 /usr/lib64/libmkl_rt.so 100
+
+alternatives --install /usr/lib64/liblapack.so.3 liblapack.so.3 /usr/lib64/libmkl_rt.so 100
+alternatives --install /usr/lib64/liblapack.so liblapack.so /usr/lib64/libmkl_rt.so 100
+alternatives --install /usr/lib64/liblapack.so.3.5 liblapack.so.3.5 /usr/lib64/libmkl_rt.so 100
+alternatives --install /usr/lib64/liblapack.so.3.5.0 liblapack.so.3.5.0 /usr/lib64/libmkl_rt.so 100
+
+alternatives --install /usr/lib64/liblapacke.so liblapacke.so /usr/lib64/libmkl_rt.so 100
+alternatives --install /usr/lib64/liblapacke.so.3 liblapacke.so.3 /usr/lib64/libmkl_rt.so 100
+alternatives --install /usr/lib64/liblapacke.so.3.5 liblapacke.so.3.5 /usr/lib64/libmkl_rt.so 100
+alternatives --install /usr/lib64/liblapacke.so.3.5.0 liblapacke.so.3.5.0 /usr/lib64/libmkl_rt.so 100
 
 # Root ssh config
 sudo sed -i 's/PermitRootLogin.*/PermitRootLogin without-password/g' \
@@ -56,10 +78,12 @@ for x in {1..23}; do
 done
 
 # Install Maven (for Hadoop)
-cd /tmp
+pushd /tmp
 wget "http://archive.apache.org/dist/maven/maven-3/3.2.3/binaries/apache-maven-3.2.3-bin.tar.gz"
 tar xvzf apache-maven-3.2.3-bin.tar.gz
 mv apache-maven-3.2.3 /opt/
+rm -f apache-maven-3.2.3-bin.tar.gz
+popd
 
 # Edit bash profile
 echo "export PS1=\"\\u@\\h \\W]\\$ \"" >> ~/.bash_profile
@@ -69,28 +93,10 @@ echo "export PATH=\$PATH:\$M2_HOME/bin" >> ~/.bash_profile
 
 source ~/.bash_profile
 
-# Build Hadoop to install native libs
-sudo mkdir /root/hadoop-native
-cd /tmp
 sudo yum install -y protobuf-compiler cmake openssl-devel
 
 sudo yum install -y zlib-devel snappy-devel
 
-# wget "http://archive.apache.org/dist/hadoop/common/hadoop-2.4.1/hadoop-2.4.1-src.tar.gz"
-wget "http://archive.apache.org/dist/hadoop/common/hadoop-2.6.4/hadoop-2.6.4-src.tar.gz"
-tar xvzf hadoop-2.6.4-src.tar.gz
-cd hadoop-2.6.4-src
-mvn clean package -Pdist,native -DskipTests -Dtar -Dmaven.javadoc.skip=true -Drequire.snappy
-sudo mv hadoop-dist/target/hadoop-2.6.4/lib/native/* /root/hadoop-native
-
-# Install Snappy lib (for Hadoop)
-# yum install -y snappy
-# ln -sf /usr/lib64/libsnappy.so.1 /root/hadoop-native/.
-sudo cp -a /usr/lib64/libsnappy.so* /root/hadoop-native/
-
-# Create /usr/bin/realpath which is used by R to find Java installations
-# NOTE: /usr/bin/realpath is missing in CentOS AMIs. See
-# http://superuser.com/questions/771104/usr-bin-realpath-not-found-in-centos-6-5
 echo '#!/bin/bash' > /usr/bin/realpath
 echo 'readlink -e "$@"' >> /usr/bin/realpath
 chmod a+x /usr/bin/realpath
@@ -101,43 +107,35 @@ chmod a+x /usr/bin/realpath
 
 ###
 # SPARK
-echo "Starting Spark installation"
-cd /tmp
-aws s3 cp s3://exensa/spark-1.6.1-bin-spark-1.6.1-lgpl.tgz .
-tar -xf spark-1.6.1-bin-spark-1.6.1-lgpl.tgz
-sudo mv spark-1.6.1-bin-spark-1.6.1-lgpl /root/spark
-sudo rm spark-1.6.1-bin-spark-1.6.1-lgpl.tgz
-
 ###
-# Persistent HDFS
-echo "Starting persistent HDFS installation"
-pushd /root > /dev/null
-wget http://s3.amazonaws.com/spark-related-packages/hadoop-2.4.0.tar.gz
-echo "Unpacking Hadoop"
-tar xvzf hadoop-*.tar.gz > /tmp/spark-ec2_hadoop.log
-sudo rm hadoop-*.tar.gz
-mv hadoop-2.4.0/ persistent-hdfs/
-# Have single conf dir
-sudo rm -rf /root/persistent-hdfs/etc/hadoop/
-ln -s /root/persistent-hdfs/conf /root/persistent-hdfs/etc/hadoop
-popd > /dev/null
+echo "Starting Spark installation"
+pushd /root
+aws s3 cp s3://wikipedia-exensa/spark-1.6.1-bin-spark-1.6.1-lgpl.tgz .
+tar -xf spark-1.6.1-bin-spark-1.6.1-lgpl.tgz
+mv -f spark-1.6.1-bin-spark-1.6.1-lgpl /root/spark
+rm -f spark-1.6.1-bin-spark-1.6.1-lgpl.tgz
+popd
+
 
 ####
 # Ephemeral HDFS
-echo "Starting Ephemeral HDFS installation"
-pushd /root > /dev/null
-wget http://s3.amazonaws.com/spark-related-packages/hadoop-2.4.0.tar.gz
-echo "Unpacking Hadoop"
-tar xvzf hadoop-*.tar.gz > /tmp/spark-ec2_hadoop.log
-sudo rm hadoop-*.tar.gz
-mv hadoop-2.4.0/ ephemeral-hdfs/
-# Have single conf dir
-sudo rm -rf /root/ephemeral-hdfs/etc/hadoop/
-ln -s /root/ephemeral-hdfs/conf /root/ephemeral-hdfs/etc/hadoop
-popd > /dev/null
+# Installation of Hadoop from source with Snappy.
+###
+pushd /tmp
+wget "http://apache.crihan.fr/dist/hadoop/common/hadoop-2.7.2/hadoop-2.7.2-src.tar.gz"
+tar xzf hadoop-2.7.2-src.tar.gz
+cd hadoop-2.7.2-src
+mvn clean package -Pdist,native -DskipTests -Dtar -Dmaven.javadoc.skip=true -Drequire.snappy
+mv -f hadoop-dist/target/hadoop-2.7.2 /root/ephemeral-hdfs
+cd ..
+rm -rf hadoop-2.7.2-src.tar.gz hadoop-2.7.2-src
+ln -s /root/ephemeral-hdfs/etc/hadoop /root/ephemeral-hdfs/conf
+cp -a /usr/lib64/libsnappy.so* /root/ephemeral-hdfs/lib/native/
+popd
 
-####
+###
 # SCALA INSTALLATION
+###
 echo "Starting Scala installation"
 pushd /root > /dev/null
 SCALA_VERSION="2.10.3"
@@ -147,21 +145,3 @@ tar xvzf scala-*.tgz > /tmp/spark-ec2_scala.log
 sudo rm scala-*.tgz
 mv `ls -d scala-* | grep -v ec2` scala
 popd > /dev/null
-
-
-# Ganglia
-echo "Starting Ganglia installation"
-# NOTE: Remove all rrds which might be around from an earlier run
-rm -rf /var/lib/ganglia/rrds/*
-rm -rf /mnt/ganglia/rrds/*
-# Make sure rrd storage directory has right permissions
-mkdir -p /mnt/ganglia/rrds
-chown -R nobody:nobody /mnt/ganglia/rrds
-# Install ganglia
-# TODO: Remove this once the AMI has ganglia by default
-# Post-package installation : Symlink /var/lib/ganglia/rrds to /mnt/ganglia/rrds
-rmdir /var/lib/ganglia/rrds
-ln -s /mnt/ganglia/rrds /var/lib/ganglia/rrds
-
-cp -fa /root/hadoop-native/* /root/ephemeral-hdfs/lib/native/
-cp -fa /root/hadoop-native/* /root/persistent-hdfs/lib/native/
