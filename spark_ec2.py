@@ -213,6 +213,10 @@ def parse_args():
         "-v", "--spark-version", default=DEFAULT_SPARK_VERSION,
         help="Version of Spark to use: 'X.Y.Z' or a specific git hash (default: %default)")
     parser.add_option(
+        "--spark-ec2-compressed",
+        default=None,
+        help="Compressed spark-ec2 (default: %default)")
+    parser.add_option(
         "--spark-git-repo",
         default=DEFAULT_SPARK_GITHUB_REPO,
         help="Github repo from which to checkout supplied commit hash (default: %default)")
@@ -818,18 +822,42 @@ def setup_cluster(conn, master_nodes, slave_nodes, opts, deploy_ssh_key):
     if opts.hadoop_major_version == "yarn":
         opts.worker_instances = ""
 
-    # NOTE: We should clone the repository before running deploy_files to
-    # prevent ec2-variables.sh from being overwritten
-    print("Cloning spark-ec2 scripts from {r}/tree/{b} on master...".format(
-        r=opts.spark_ec2_git_repo, b=opts.spark_ec2_git_branch))
-    ssh(
-        host=master,
-        opts=opts,
-        command="rm -rf spark-ec2"
-        + " && "
-        + "git clone {r} -b {b} spark-ec2".format(r=opts.spark_ec2_git_repo,
-                                                  b=opts.spark_ec2_git_branch)
-    )
+    if opts.spark_ec2_compressed:
+        print("Transferring spark-ec2 files from local file {} to master...".format(opts.spark_ec2_compressed))
+        command = [
+            'rsync', '-rv',
+            '-e', stringify_command(ssh_command(opts)),
+            "%s" % opts.spark_ec2_compressed,
+            "%s@%s:/root/" % (opts.user, master)
+        ]
+        subprocess.check_call(command)
+
+        spark_ec2_basename = os.path.basename(opts.spark_ec2_compressed)
+
+        ssh(
+            host=master,
+            opts=opts,
+            command= "rm -rf spark-ec2"
+            + " && "
+            + "tar -xf {c}".format(c=spark_ec2_basename)
+            + " && "
+            + "rm -f {c}".format(c=spark_ec2_basename)
+            + " && "
+            + "mv spark-ec2-* spark-ec2"
+        )
+    else:
+        # NOTE: We should clone the repository before running deploy_files to
+        # prevent ec2-variables.sh from being overwritten
+        print("Cloning spark-ec2 scripts from {r}/tree/{b} on master...".format(
+            r=opts.spark_ec2_git_repo, b=opts.spark_ec2_git_branch))
+        ssh(
+            host=master,
+            opts=opts,
+            command="rm -rf spark-ec2"
+            + " && "
+            + "git clone {r} -b {b} spark-ec2".format(r=opts.spark_ec2_git_repo,
+                                                      b=opts.spark_ec2_git_branch)
+        )
 
     print("Deploying files to master...")
     deploy_files(
