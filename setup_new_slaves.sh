@@ -28,20 +28,20 @@ PUBLIC_DNS=`wget -q -O - http://169.254.169.254/latest/meta-data/hostname`
 echo "Setting up Spark on `hostname`..."
 
 # Set up the masters, slaves, etc files based on cluster env variables
-echo "----------------------------------------------------------------------------------------------"
 echo "$MASTERS" > masters
-cat slaves
-echo "----------------------------------------------------------------------------------------------"
-echo "$SLAVES" >> slaves
-cat slaves
-echo "----------------------------------------------------------------------------------------------"
-echo "----------------------------------------------------------------------------------------------"
 
 MASTERS=`cat masters`
 NUM_MASTERS=`cat masters | wc -l`
 OTHER_MASTERS=`cat masters | sed '1d'`
 NEW_SLAVES=$SLAVES
 SLAVES="$OLD_SLAVES `cat slaves`"
+
+# Set up slaves file combining old and new slaves.
+echo "$SLAVES" >> slaves
+echo "$SLAVES"
+echo `cat slaves`
+echo "----------------------------------------------------------------------------------------------------------"
+
 SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=5"
 
 if [[ "x$JAVA_HOME" == "x" ]] ; then
