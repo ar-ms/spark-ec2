@@ -14,7 +14,9 @@ pushd /root/spark-ec2 > /dev/null
 # Load the environment variables specific to this AMI
 source /root/.bash_profile
 
+# Keeping the old list of slaves
 OLD_SLAVES=`cat slaves`
+
 # Load the cluster variables set by the deploy script
 source ec2-variables.sh
 
@@ -26,18 +28,20 @@ PUBLIC_DNS=`wget -q -O - http://169.254.169.254/latest/meta-data/hostname`
 echo "Setting up Spark on `hostname`..."
 
 # Set up the masters, slaves, etc files based on cluster env variables
-echo "$MASTERS" > masters
 echo "----------------------------------------------------------------------------------------------"
+echo "$MASTERS" > masters
 cat slaves
+echo "----------------------------------------------------------------------------------------------"
 echo "$SLAVES" >> slaves
 cat slaves
+echo "----------------------------------------------------------------------------------------------"
+echo "----------------------------------------------------------------------------------------------"
 
 MASTERS=`cat masters`
 NUM_MASTERS=`cat masters | wc -l`
 OTHER_MASTERS=`cat masters | sed '1d'`
-# Conserving the new slaves
 NEW_SLAVES=$SLAVES
-SLAVES=`cat slaves`
+SLAVES="$OLD_SLAVES `cat slaves`"
 SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=5"
 
 if [[ "x$JAVA_HOME" == "x" ]] ; then
