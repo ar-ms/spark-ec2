@@ -37,6 +37,9 @@ MASTERS=`cat masters`
 NUM_MASTERS=`cat masters | wc -l`
 OTHER_MASTERS=`cat masters | sed '1d'`
 SLAVES=`cat slaves`
+cat slaves
+echo $SLAVES
+echo "-----------------------------------------------------------------------------------------"
 SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=5"
 
 if [[ "x$JAVA_HOME" == "x" ]] ; then
