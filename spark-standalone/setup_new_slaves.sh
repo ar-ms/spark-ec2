@@ -14,9 +14,12 @@ cp /root/spark-ec2/slaves /root/spark/conf/
 echo "spark://""`cat /root/spark-ec2/masters`"":7077" > /root/spark-ec2/cluster-url
 /root/spark-ec2/copy-dir /root/spark-ec2
 
-for node in $NEW_SLAVES $OTHER_MASTERS; do
-  echo $node
-  # Start Workers
-  ssh -t -t $SSH_OPTS root@$node $BIN_FOLDER/start-slave.sh & sleep 0.3
-done
-wait
+# Start Workers
+$BIN_FOLDER/start-slaves.sh
+
+# for node in $NEW_SLAVES $OTHER_MASTERS; do
+#   echo $node
+#   # Start Workers
+#   ssh -t -t $SSH_OPTS root@$node $BIN_FOLDER/start-slave.sh & sleep 0.3
+# done
+# wait
