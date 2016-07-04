@@ -64,4 +64,9 @@ if [ -d $SPARK_CONF_DIR ]; then
     cat /root/spark-ec2/slaves > $SPARK_CONF_DIR/slaves
 fi
 
+# Copy spark conf by default
+echo "Deploying Spark config files..."
+chmod u+x /root/spark/conf/spark-env.sh
+/root/spark-ec2/copy-dir /root/spark/conf
+
 popd > /dev/null
