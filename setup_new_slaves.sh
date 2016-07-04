@@ -14,9 +14,6 @@ pushd /root/spark-ec2 > /dev/null
 # Load the environment variables specific to this AMI
 source /root/.bash_profile
 
-# Keeping the old list of slaves
-OLD_SLAVES=`cat slaves`
-
 # Load the cluster variables set by the deploy script
 source ec2-variables.sh
 
@@ -29,18 +26,13 @@ echo "Setting up Spark on `hostname`..."
 
 # Set up the masters, slaves, etc files based on cluster env variables
 echo "$MASTERS" > masters
+echo "$SLAVES" >> slaves
 
 MASTERS=`cat masters`
 NUM_MASTERS=`cat masters | wc -l`
 OTHER_MASTERS=`cat masters | sed '1d'`
 NEW_SLAVES=$SLAVES
-SLAVES="$OLD_SLAVES `cat slaves`"
-
-# Set up slaves file combining old and new slaves.
-echo "$SLAVES" >> slaves
-echo "$SLAVES"
-echo `cat slaves`
-echo "----------------------------------------------------------------------------------------------------------"
+SLAVES=`cat slaves`
 
 SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=5"
 
@@ -66,6 +58,7 @@ for node in $SLAVES $OTHER_MASTERS; do
   sleep 0.1
 done
 wait
+
 rsync_end_time="$(date +'%s')"
 echo_time_diff "rsync /root/spark-ec2" "$rsync_start_time" "$rsync_end_time"
 
