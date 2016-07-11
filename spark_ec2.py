@@ -474,24 +474,7 @@ def get_spark_ami(opts):
     return ami
 
 
-# Launch a cluster of the given name, by setting up its security groups,
-# and then starting new instances in them.
-# Returns a tuple of EC2 reservation objects for the master and slaves
-# Fails if there already instances running in the cluster's groups.
-def launch_cluster(conn, opts, cluster_name):
-    if opts.identity_file is None:
-        print("ERROR: Must provide an identity file (-i) for ssh connections.", file=stderr)
-        sys.exit(1)
-
-    if opts.key_pair is None:
-        print("ERROR: Must provide a key pair name (-k) to use on instances.", file=stderr)
-        sys.exit(1)
-
-    user_data_content = None
-    if opts.user_data:
-        with open(opts.user_data) as user_data_file:
-            user_data_content = user_data_file.read()
-
+def set_security_groups(conn, opts, cluster_name):
     print("Setting up security groups...")
     master_group = get_or_make_group(conn, cluster_name + "-master", opts.vpc_id)
     slave_group = get_or_make_group(conn, cluster_name + "-slaves", opts.vpc_id)
@@ -557,33 +540,10 @@ def launch_cluster(conn, opts, cluster_name):
         slave_group.authorize('tcp', 50075, 50075, authorized_address)
         slave_group.authorize('tcp', 60060, 60060, authorized_address)
         slave_group.authorize('tcp', 60075, 60075, authorized_address)
+    return (master_group, slave_group)
 
-    # Check if instances are already running in our groups
-    existing_masters, existing_slaves = get_existing_cluster(conn, opts, cluster_name,
-                                                             die_on_error=False)
-    if existing_slaves or (existing_masters and not opts.use_existing_master):
-        print("ERROR: There are already instances running in group %s or %s" %
-              (master_group.name, slave_group.name), file=stderr)
-        sys.exit(1)
 
-    # Figure out Spark AMI
-    if opts.ami is None:
-        opts.ami = get_spark_ami(opts)
-
-    # we use group ids to work around https://github.com/boto/boto/issues/350
-    additional_group_ids = []
-    if opts.additional_security_group:
-        additional_group_ids = [sg.id
-                                for sg in conn.get_all_security_groups()
-                                if opts.additional_security_group in (sg.name, sg.id)]
-    print("Launching instances...")
-
-    try:
-        image = conn.get_all_images(image_ids=[opts.ami])[0]
-    except:
-        print("Could not find AMI " + opts.ami, file=stderr)
-        sys.exit(1)
-
+def create_block_device(opts):
     # Create block device mapping so that we can add EBS volumes if asked to.
     # The first drive is attached as /dev/sds, 2nd as /dev/sdt, ... /dev/sdz
     block_map = BlockDeviceMapping()
@@ -603,17 +563,78 @@ def launch_cluster(conn, opts, cluster_name):
             # The first ephemeral drive is /dev/sdb.
             name = '/dev/sd' + string.ascii_letters[i + 1]
             block_map[name] = dev
+    return block_map
+
+
+def get_user_data_content(opts):
+    user_data_content = None
+    if opts.user_data:
+        with open(opts.user_data) as user_data_file:
+            user_data_content = user_data_file.read()
+    return user_data_content
+
+
+def get_additional_group_ids(conn, opts):
+    # we use group ids to work around https://github.com/boto/boto/issues/350
+    additional_group_ids = []
+    if opts.additional_security_group:
+        additional_group_ids = [sg.id
+                                for sg in conn.get_all_security_groups()
+                                if opts.additional_security_group in (sg.name, sg.id)]
+    return additional_group_ids
+
+
+def launch_master(conn, opts, cluster_name, master_group, image, existing_masters):
+    additional_group_ids = get_additional_group_ids(conn, opts)
+    block_map = create_block_device(opts)
+    user_data_content = get_user_data_content(opts)
+
+    # Launch or resume masters
+    if existing_masters:
+        print("Starting master...")
+        for inst in existing_masters:
+            if inst.state not in ["shutting-down", "terminated"]:
+                inst.start()
+        master_nodes = existing_masters
+    else:
+        master_type = opts.master_instance_type
+        if master_type == "":
+            master_type = opts.instance_type
+        if opts.zone == 'all':
+            opts.zone = random.choice(conn.get_all_zones()).name
+        master_res = image.run(
+            key_name=opts.key_pair,
+            security_group_ids=[master_group.id] + additional_group_ids,
+            instance_type=master_type,
+            placement=opts.zone,
+            min_count=1,
+            max_count=1,
+            block_device_map=block_map,
+            subnet_id=opts.subnet_id,
+            placement_group=opts.placement_group,
+            user_data=user_data_content,
+            instance_initiated_shutdown_behavior=opts.instance_initiated_shutdown_behavior,
+            instance_profile_name=opts.instance_profile_name)
+
+        master_nodes = master_res.instances
+        print("Launched master in %s, regid = %s" % (opts.zone, master_res.id))
+    return master_nodes
+
+
+def launch_slaves(conn, opts, cluster_name, slave_group, image):
+    additional_group_ids = get_additional_group_ids(conn, opts)
+    block_map = create_block_device(opts)
+    user_data_content = get_user_data_content(opts)
 
     # Launch slaves
-    if opts.spot_price is not None:
+    if opts.spot_price:
         # Launch spot instances with the requested price
         print("Requesting %d slaves as spot instances with price $%.3f" %
               (opts.slaves, opts.spot_price))
         zones = get_zones(conn, opts)
         num_zones = len(zones)
-        i = 0
         my_req_ids = []
-        for zone in zones:
+        for i, zone in enumerate(zones):
             num_slaves_this_zone = get_partition(opts.slaves, num_zones, i)
             slave_reqs = conn.request_spot_instances(
                 price=opts.spot_price,
@@ -630,7 +651,6 @@ def launch_cluster(conn, opts, cluster_name):
                 user_data=user_data_content,
                 instance_profile_name=opts.instance_profile_name)
             my_req_ids += [req.id for req in slave_reqs]
-            i += 1
 
         print("Waiting for spot instances to be granted...")
         try:
@@ -668,9 +688,8 @@ def launch_cluster(conn, opts, cluster_name):
         # Launch non-spot instances
         zones = get_zones(conn, opts)
         num_zones = len(zones)
-        i = 0
         slave_nodes = []
-        for zone in zones:
+        for i, zone in enumerate(zones):
             num_slaves_this_zone = get_partition(opts.slaves, num_zones, i)
             if num_slaves_this_zone > 0:
                 slave_res = image.run(
@@ -692,42 +711,25 @@ def launch_cluster(conn, opts, cluster_name):
                       plural_s=('' if num_slaves_this_zone == 1 else 's'),
                       z=zone,
                       r=slave_res.id))
-            i += 1
+    return slave_nodes
 
-    # Launch or resume masters
-    if existing_masters:
-        print("Starting master...")
-        for inst in existing_masters:
-            if inst.state not in ["shutting-down", "terminated"]:
-                inst.start()
-        master_nodes = existing_masters
-    else:
-        master_type = opts.master_instance_type
-        if master_type == "":
-            master_type = opts.instance_type
-        if opts.zone == 'all':
-            opts.zone = random.choice(conn.get_all_zones()).name
-        master_res = image.run(
-            key_name=opts.key_pair,
-            security_group_ids=[master_group.id] + additional_group_ids,
-            instance_type=master_type,
-            placement=opts.zone,
-            min_count=1,
-            max_count=1,
-            block_device_map=block_map,
-            subnet_id=opts.subnet_id,
-            placement_group=opts.placement_group,
-            user_data=user_data_content,
-            instance_initiated_shutdown_behavior=opts.instance_initiated_shutdown_behavior,
-            instance_profile_name=opts.instance_profile_name)
 
-        master_nodes = master_res.instances
-        print("Launched master in %s, regid = %s" % (zone, master_res.id))
+def get_image(opts):
+    image = None
 
-    # This wait time corresponds to SPARK-4983
-    print("Waiting for AWS to propagate instance metadata...")
-    time.sleep(15)
+    # Figure out Spark AMI
+    if opts.ami is None:
+        opts.ami = get_spark_ami(opts)
 
+    try:
+        image = conn.get_all_images(image_ids=[opts.ami])[0]
+    except:
+        print("Could not find AMI " + opts.ami, file=stderr)
+        sys.exit(1)
+    return image
+
+
+def add_tags(opts, cluster_name, nodes, role):
     # Give the instances descriptive names and set additional tags
     additional_tags = {}
     if opts.additional_tags.strip():
@@ -735,15 +737,53 @@ def launch_cluster(conn, opts, cluster_name):
             map(str.strip, tag.split(':', 1)) for tag in opts.additional_tags.split(',')
         )
 
-    for master in master_nodes:
-        master.add_tags(
-            dict(additional_tags, Name='{cn}-master-{iid}'.format(cn=cluster_name, iid=master.id))
+    for node in nodes:
+        node.add_tags(
+            dict(additional_tags, Name='{cn}-{role}-{iid}'.format(cn=cluster_name,
+                                                                  role=role,
+                                                                  iid=node.id))
         )
 
-    for slave in slave_nodes:
-        slave.add_tags(
-            dict(additional_tags, Name='{cn}-slave-{iid}'.format(cn=cluster_name, iid=slave.id))
-        )
+
+def check_certificates(opts):
+    if opts.identity_file is None:
+        print("ERROR: Must provide an identity file (-i) for ssh connections.", file=stderr)
+        sys.exit(1)
+
+    if opts.key_pair is None:
+        print("ERROR: Must provide a key pair name (-k) to use on instances.", file=stderr)
+        sys.exit(1)
+
+
+# Launch a cluster of the given name, by setting up its security groups,
+# and then starting new instances in them.
+# Returns a tuple of EC2 reservation objects for the master and slaves
+# Fails if there already instances running in the cluster's groups.
+def launch_cluster(conn, opts, cluster_name):
+    check_certificates(opts)
+
+    # Check if instances are already running in our groups
+    existing_masters, existing_slaves = get_existing_cluster(conn, opts, cluster_name,
+                                                             die_on_error=False)
+    if existing_slaves or (existing_masters and not opts.use_existing_master):
+        print("ERROR: There are already instances running in group %s or %s" %
+              (master_group.name, slave_group.name), file=stderr)
+        sys.exit(1)
+
+    print("Launching instances...")
+    image = get_image(opts)
+
+    slave_nodes = launch_slaves(conn, opts, cluster_name,
+                                slave_group, image)
+    master_nodes = launch_master(conn, opts, cluster_name,
+                                 master_group, image, existing_masters)
+
+    # This wait time corresponds to SPARK-4983
+    print("Waiting for AWS to propagate instance metadata...")
+    time.sleep(15)
+
+    add_tags(opts, cluster_name, master_nodes, role="master")
+    add_tags(opts, cluster_name, slave_nodes, role="slave")
 
     # Return all the instances
     return (master_nodes, slave_nodes)
