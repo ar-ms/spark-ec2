@@ -714,7 +714,7 @@ def launch_slaves(conn, opts, cluster_name, slave_group, image):
     return slave_nodes
 
 
-def get_image(opts):
+def get_image(conn, opts):
     image = None
 
     # Figure out Spark AMI
@@ -762,6 +762,8 @@ def check_certificates(opts):
 def launch_cluster(conn, opts, cluster_name):
     check_certificates(opts)
 
+    master_group, slave_group = set_security_groups(conn, opts, cluster_name)
+
     # Check if instances are already running in our groups
     existing_masters, existing_slaves = get_existing_cluster(conn, opts, cluster_name,
                                                              die_on_error=False)
@@ -771,7 +773,7 @@ def launch_cluster(conn, opts, cluster_name):
         sys.exit(1)
 
     print("Launching instances...")
-    image = get_image(opts)
+    image = get_image(conn, opts)
 
     slave_nodes = launch_slaves(conn, opts, cluster_name,
                                 slave_group, image)
