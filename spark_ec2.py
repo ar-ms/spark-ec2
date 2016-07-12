@@ -794,6 +794,36 @@ def launch_cluster(conn, opts, cluster_name):
     return (master_nodes, slave_nodes)
 
 
+def launch_cluster(conn, opts, cluster_name):
+    check_certificates(opts)
+
+    master_group, slave_group = set_security_groups(conn, opts, cluster_name)
+
+    # Check if instances are already running in our groups
+    existing_masters, existing_slaves = get_existing_cluster(conn, opts, cluster_name,
+                                                             die_on_error=False)
+    if not existing_masters:
+        print("ERROR: There is no master running in group %s." %
+              (master_group.name), file=stderr)
+        sys.exit(1)
+
+    print("Launching instances...")
+    image = get_image(conn, opts)
+
+    slave_nodes = launch_slaves(conn, opts, cluster_name,
+                                slave_group, image)
+    master_nodes = existing_masters
+
+    # This wait time corresponds to SPARK-4983
+    print("Waiting for AWS to propagate instance metadata...")
+    time.sleep(15)
+
+    add_tags(opts, cluster_name, slave_nodes, role="slave")
+
+    # Return all the instances
+    return (master_nodes, slave_nodes)
+
+
 def get_existing_cluster(conn, opts, cluster_name, die_on_error=True):
     """
     Get the EC2 instances in an existing cluster if available.
@@ -860,17 +890,19 @@ def deploy_repository(opts, master):
     )
 
 
+def setup_spark_cluster(master, opts, setup_script):
+    ssh(master, opts, "chmod u+x {setup_script}".format(setup_script=setup_script))
+    ssh(master, opts, "{setup_script}".format(setup_script=setup_script))
+    print("Spark standalone cluster started at http://%s:8080" % master)
+
+    if opts.ganglia:
+        print("Ganglia started at http://%s:5080/ganglia" % master)
+
+
 # Deploy configuration files and run setup scripts on a newly launched
 # or started EC2 cluster.
 def setup_cluster(conn, master_nodes, slave_nodes, opts, deploy_ssh_key):
-    def setup_spark_cluster(master, opts):
-        ssh(master, opts, "chmod u+x spark-ec2/setup.sh")
-        ssh(master, opts, "spark-ec2/setup.sh")
-        print("Spark standalone cluster started at http://%s:8080" % master)
-
-        if opts.ganglia:
-            print("Ganglia started at http://%s:5080/ganglia" % master)
-
+    setup_script = "spark-ec2/setup.sh"
     master = get_dns_name(master_nodes[0], opts.private_ips)
     if deploy_ssh_key:
         print("Generating cluster's SSH key on master...")
@@ -908,14 +940,14 @@ def setup_cluster(conn, master_nodes, slave_nodes, opts, deploy_ssh_key):
         slave_nodes=slave_nodes,
         modules=modules
     )
-
-    deploy_files(
+ 
+   deploy_files(
         conn=conn,
         root_dir=SPARK_EC2_DIR + "/" + "entities.generic",
         opts=opts,
         master_nodes=master_nodes,
         slave_nodes=slave_nodes,
-        modules=modules
+        modules=[]
     )
 
     if opts.deploy_root_dir is not None:
@@ -927,7 +959,45 @@ def setup_cluster(conn, master_nodes, slave_nodes, opts, deploy_ssh_key):
         )
 
     print("Running setup on master...")
-    setup_spark_cluster(master, opts)
+    setup_spark_cluster(master, opts, setup_script)
+    print("Done!")
+
+
+def setup_new_slaves(conn, new_slave_nodes, opts, cluster_name, deploy_ssh_key):
+    setup_script = "spark-ec2/setup_new_slaves.sh"
+    master_nodes, all_slave_nodes = get_existing_cluster(conn, opts, cluster_name)
+    master = get_dns_name(master_nodes[0], opts.private_ips)
+    if deploy_ssh_key:
+        transfert_SSH_key(opts, master, new_slave_nodes)
+
+    deploy_files(
+        conn=conn,
+        root_dir=SPARK_EC2_DIR + "/" + "new_slaves.generic",
+        opts=opts,
+        master_nodes=master_nodes,
+        slave_nodes=new_slave_nodes,
+        modules=[]
+    )
+
+    deploy_files(
+        conn=conn,
+        root_dir=SPARK_EC2_DIR + "/" + "entities.generic",
+        opts=opts,
+        master_nodes=master_nodes,
+        slave_nodes=all_slave_nodes,
+        modules=[]
+    )
+
+    if opts.deploy_root_dir is not None:
+        print("Deploying {s} to master...".format(s=opts.deploy_root_dir))
+        deploy_user_files(
+            root_dir=opts.deploy_root_dir,
+            opts=opts,
+            master_nodes=master_nodes
+        )
+
+    print("Running setup on master...")
+    setup_spark_cluster(master, opts, setup_script)
     print("Done!")
 
 
@@ -1423,6 +1493,19 @@ def real_main():
             cluster_state='ssh-ready'
         )
         setup_cluster(conn, master_nodes, slave_nodes, opts, True)
+
+    elif action == "add-slaves":
+        if opts.slaves <= 0:
+            print("ERROR: You must start at least 1 slave.", file=sys.stderr)
+            sys.exit(1)
+        master_nodes, slave_nodes = add_slaves(conn, opts, cluster_name)
+        wait_for_cluster_state(
+            conn=conn,
+            opts=opts,
+            cluster_instances=(master_nodes + slave_nodes),
+            cluster_state='ssh-ready'
+        )
+        setup_new_slaves(conn, slave_nodes, opts, cluster_name, True)
 
     elif action == "destroy":
         (master_nodes, slave_nodes) = get_existing_cluster(
