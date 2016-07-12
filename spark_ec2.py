@@ -475,6 +475,9 @@ def get_spark_ami(opts):
 
 
 def set_security_groups(conn, opts, cluster_name):
+    """
+    Set security groups(acts as virtual firewall) for masters and slaves instances.
+    """
     print("Setting up security groups...")
     master_group = get_or_make_group(conn, cluster_name + "-master", opts.vpc_id)
     slave_group = get_or_make_group(conn, cluster_name + "-slaves", opts.vpc_id)
@@ -829,40 +832,22 @@ def get_existing_cluster(conn, opts, cluster_name, die_on_error=True):
     return (master_instances, slave_instances)
 
 
-# Deploy configuration files and run setup scripts on a newly launched
-# or started EC2 cluster.
-def setup_cluster(conn, master_nodes, slave_nodes, opts, deploy_ssh_key):
-    master = get_dns_name(master_nodes[0], opts.private_ips)
-    if deploy_ssh_key:
-        print("Generating cluster's SSH key on master...")
-        key_setup = """
-          [ -f ~/.ssh/id_rsa ] ||
-            (ssh-keygen -q -t rsa -N '' -f ~/.ssh/id_rsa &&
-             cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys)
-        """
-        ssh(master, opts, key_setup)
-        dot_ssh_tar = ssh_read(master, opts, ['tar', 'c', '.ssh'])
-        print("Transferring cluster's SSH key to slaves...")
-        for slave in slave_nodes:
-            slave_address = get_dns_name(slave, opts.private_ips)
-            print(slave_address)
-            ssh_write(slave_address, opts, ['tar', 'x'], dot_ssh_tar)
+def transfert_SSH_key(opts, master, slave_nodes):
+    """
+    Transfert SSH key to slaves
+    """
+    dot_ssh_tar = ssh_read(master, opts, ['tar', 'c', '.ssh'])
+    print("Transferring cluster's SSH key to slaves...")
+    for slave in slave_nodes:
+        slave_address = get_dns_name(slave, opts.private_ips)
+        print(slave_address)
+        ssh_write(slave_address, opts, ['tar', 'x'], dot_ssh_tar)
 
-    modules = ['spark', 'ephemeral-hdfs', 'persistent-hdfs',
-               'mapreduce', 'spark-standalone', 'tachyon', 'rstudio']
 
-    if opts.hadoop_major_version == "1":
-        modules = list(filter(lambda x: x != "mapreduce", modules))
-
-    if opts.ganglia:
-        modules.append('ganglia')
-
-    # Clear SPARK_WORKER_INSTANCES if running on YARN
-    if opts.hadoop_major_version == "yarn":
-        opts.worker_instances = ""
-
-    # NOTE: We should clone the repository before running deploy_files to
-    # prevent ec2-variables.sh from being overwritten
+def deploy_repository(opts, master):
+    """
+    Deploy spark_ec2 repo to master
+    """
     print("Cloning spark-ec2 scripts from {r}/tree/{b} on master...".format(
         r=opts.spark_ec2_git_repo, b=opts.spark_ec2_git_branch))
     ssh(
@@ -874,10 +859,59 @@ def setup_cluster(conn, master_nodes, slave_nodes, opts, deploy_ssh_key):
                                                   b=opts.spark_ec2_git_branch)
     )
 
+
+# Deploy configuration files and run setup scripts on a newly launched
+# or started EC2 cluster.
+def setup_cluster(conn, master_nodes, slave_nodes, opts, deploy_ssh_key):
+    def setup_spark_cluster(master, opts):
+        ssh(master, opts, "chmod u+x spark-ec2/setup.sh")
+        ssh(master, opts, "spark-ec2/setup.sh")
+        print("Spark standalone cluster started at http://%s:8080" % master)
+
+        if opts.ganglia:
+            print("Ganglia started at http://%s:5080/ganglia" % master)
+
+    master = get_dns_name(master_nodes[0], opts.private_ips)
+    if deploy_ssh_key:
+        print("Generating cluster's SSH key on master...")
+        key_setup = """
+          [ -f ~/.ssh/id_rsa ] ||
+            (ssh-keygen -q -t rsa -N '' -f ~/.ssh/id_rsa &&
+             cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys)
+        """
+        ssh(master, opts, key_setup)
+        transfert_SSH_key(opts, master, slave_nodes)
+
+    modules = ['spark', 'ephemeral-hdfs', 'persistent-hdfs',
+               'mapreduce', 'spark-standalone', 'tachyon', 'rstudio']
+
+    if opts.hadoop_major_version == "1":
+        modules = [module for module in modules if module != "mapreduce"]
+
+    if opts.ganglia:
+        modules.append('ganglia')
+
+    # Clear SPARK_WORKER_INSTANCES if running on YARN
+    if opts.hadoop_major_version == "yarn":
+        opts.worker_instances = ""
+
+    # NOTE: We should clone the repository before running deploy_files to
+    # prevent ec2-variables.sh from being overwritten
+    deploy_repository(opts, master)
+
     print("Deploying files to master...")
     deploy_files(
         conn=conn,
         root_dir=SPARK_EC2_DIR + "/" + "deploy.generic",
+        opts=opts,
+        master_nodes=master_nodes,
+        slave_nodes=slave_nodes,
+        modules=modules
+    )
+
+    deploy_files(
+        conn=conn,
+        root_dir=SPARK_EC2_DIR + "/" + "entities.generic",
         opts=opts,
         master_nodes=master_nodes,
         slave_nodes=slave_nodes,
@@ -895,15 +929,6 @@ def setup_cluster(conn, master_nodes, slave_nodes, opts, deploy_ssh_key):
     print("Running setup on master...")
     setup_spark_cluster(master, opts)
     print("Done!")
-
-
-def setup_spark_cluster(master, opts):
-    ssh(master, opts, "chmod u+x spark-ec2/setup.sh")
-    ssh(master, opts, "spark-ec2/setup.sh")
-    print("Spark standalone cluster started at http://%s:8080" % master)
-
-    if opts.ganglia:
-        print("Ganglia started at http://%s:5080/ganglia" % master)
 
 
 def is_ssh_available(host, opts, print_ssh_output=True):
@@ -1100,7 +1125,7 @@ def deploy_files(conn, root_dir, opts, master_nodes, slave_nodes, modules):
         spark_v = "%s|%s" % (opts.spark_git_repo, opts.spark_version)
         tachyon_v = ""
         print("Deploying Spark via git hash; Tachyon won't be set up")
-        modules = filter(lambda x: x != "tachyon", modules)
+        modules = [module for module in modules if module != "tachyon"]
 
     master_addresses = [get_dns_name(i, opts.private_ips) for i in master_nodes]
     slave_addresses = [get_dns_name(i, opts.private_ips) for i in slave_nodes]

@@ -29,10 +29,6 @@ export HOSTNAME=$PRIVATE_DNS  # Fix the bash built-in hostname variable too
 
 echo "Setting up Spark on `hostname`..."
 
-# Set up the masters, slaves, etc files based on cluster env variables
-echo "$MASTERS" > masters
-echo "$SLAVES" > slaves
-
 MASTERS=`cat masters`
 NUM_MASTERS=`cat masters | wc -l`
 OTHER_MASTERS=`cat masters | sed '1d'`
