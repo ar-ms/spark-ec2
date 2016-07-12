@@ -29,10 +29,10 @@ export HOSTNAME=$PRIVATE_DNS  # Fix the bash built-in hostname variable too
 
 echo "Setting up Spark on `hostname`..."
 
-MASTERS=`cat masters`
+export MASTERS=`cat masters`
 NUM_MASTERS=`cat masters | wc -l`
 OTHER_MASTERS=`cat masters | sed '1d'`
-SLAVES=`cat slaves`
+export SLAVES=`cat slaves`
 SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=5"
 
 if [[ "x$JAVA_HOME" == "x" ]] ; then
