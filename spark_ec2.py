@@ -794,7 +794,7 @@ def launch_cluster(conn, opts, cluster_name):
     return (master_nodes, slave_nodes)
 
 
-def launch_cluster(conn, opts, cluster_name):
+def add_slaves(conn, opts, cluster_name):
     check_certificates(opts)
 
     master_group, slave_group = set_security_groups(conn, opts, cluster_name)
@@ -941,7 +941,7 @@ def setup_cluster(conn, master_nodes, slave_nodes, opts, deploy_ssh_key):
         modules=modules
     )
  
-   deploy_files(
+    deploy_files(
         conn=conn,
         root_dir=SPARK_EC2_DIR + "/" + "entities.generic",
         opts=opts,

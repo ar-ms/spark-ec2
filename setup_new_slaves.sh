@@ -102,7 +102,9 @@ chmod u+x /root/spark/conf/spark-env.sh
 for module in $MODULES; do
   echo "Setting up $module"
   module_setup_start_time="$(date +'%s')"
-  source ./$module/setup_new_slaves.sh
+  if [[ -e $module/setup_new_slaves.sh ]]; then
+      source ./$module/setup_new_slaves.sh
+  fi
   sleep 0.1
   module_setup_end_time="$(date +'%s')"
   echo_time_diff "$module setup" "$module_setup_start_time" "$module_setup_end_time"
