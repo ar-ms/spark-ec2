@@ -824,6 +824,53 @@ def add_slaves(conn, opts, cluster_name):
     return (master_nodes, slave_nodes)
 
 
+def remove_slaves(conn, opts, cluster_name):
+    master_nodes, slave_nodes = get_existing_cluster(conn, opts,
+                                                     cluster_name, die_on_error=False)
+
+    if not master_nodes:
+        print("ERROR: There is no running master in this cluster: %s" %
+              (cluster_name), file=stderr)
+        sys.exit(1)
+
+    master = get_dns_name(master_nodes[0], opts.private_ips)
+
+    if not slave_nodes:
+        return ;
+
+    slave_to_remove = []
+    if opts.slaves == -1 or opts.slaves >= len(slave_nodes):
+        slave_to_remove = slave_nodes
+        print("All slaves will be terminated.")
+    else:
+        print("The following slave instance(s) will be terminated:")
+        for _ in range(opts.slaves):
+            slave_to_remove.append(random.choice(slave_nodes))
+
+    for inst in slave_to_remove:
+        print("> %s" % get_dns_name(inst, opts.private_ips))
+
+    msg = "Are you sure you want to delete " \
+          "these slave(s) on cluster {c} ? (y/N) ".format(c=cluster_name)
+    response = raw_input(msg)
+    if response == "y":
+        print("Terminating slave(s)...")
+        for inst in slave_to_remove:
+            inst.terminate()
+
+        print("Deploying files to master...")
+        deploy_files(
+            conn=conn,
+            root_dir=SPARK_EC2_DIR + "/" + "entities.generic",
+            opts=opts,
+            master_nodes=master_nodes,
+            slave_nodes=list(set(slave_nodes) - set(slave_to_remove)),
+            modules=[]
+        )
+
+        print("Propagate slaves files...")
+        # TODO: propagate slaves files.
+
 def get_existing_cluster(conn, opts, cluster_name, die_on_error=True):
     """
     Get the EC2 instances in an existing cluster if available.
@@ -1506,6 +1553,11 @@ def real_main():
             cluster_state='ssh-ready'
         )
         setup_new_slaves(conn, slave_nodes, opts, cluster_name, True)
+
+    elif action == "remove-slaves":
+        if opts.slaves <= 0 and opts.slaves != -1:
+            print("ERROR: You must remove at least 1 slave.", file=sys.stderr)
+            sys.exit(1)
 
     elif action == "destroy":
         (master_nodes, slave_nodes) = get_existing_cluster(
