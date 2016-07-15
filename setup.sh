@@ -89,7 +89,7 @@ fi
 #   cd /root/spark-ec2  # guard against init.sh changing the cwd
 # done
 
-source /root/spark-ec2/ganglia/init.sh
+source ganglia/init.sh
 
 # Deploy templates
 # TODO: Move configuring templates to a per-module ?
