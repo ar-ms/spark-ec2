@@ -51,6 +51,8 @@ if [[ ! $MODULES =~ *scala* ]]; then
   MODULES=$(printf "%s\n%s\n" "scala" $MODULES)
 fi
 
+cp /root/spark-ec2/slaves /root/spark/conf/
+
 # Deploy templates
 # TODO: Move configuring templates to a per-module ?
 echo "Creating local config files..."

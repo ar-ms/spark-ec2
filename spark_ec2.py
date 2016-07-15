@@ -858,18 +858,24 @@ def remove_slaves(conn, opts, cluster_name):
         for inst in slave_to_remove:
             inst.terminate()
 
+        master_nodes, slave_nodes = get_existing_cluster(conn, opts,
+                                                         cluster_name, die_on_error=False)
+
+        master = get_dns_name(master_nodes[0], opts.private_ips)
+
         print("Deploying files to master...")
         deploy_files(
             conn=conn,
             root_dir=SPARK_EC2_DIR + "/" + "entities.generic",
             opts=opts,
             master_nodes=master_nodes,
-            slave_nodes=list(set(slave_nodes) - set(slave_to_remove)),
+            slave_nodes=slave_nodes,
             modules=[]
         )
 
         print("Propagate slaves files...")
-        # TODO: propagate slaves files.
+        ssh(master, opts, "chmod u+x /root/spark-ec2/update_entities.sh")
+        ssh(master, opts, "/root/spark-ec2/update_entities.sh")
 
 def get_existing_cluster(conn, opts, cluster_name, die_on_error=True):
     """
@@ -1558,6 +1564,7 @@ def real_main():
         if opts.slaves <= 0 and opts.slaves != -1:
             print("ERROR: You must remove at least 1 slave.", file=sys.stderr)
             sys.exit(1)
+        remove_slaves(conn, opts, cluster_name)
 
     elif action == "destroy":
         (master_nodes, slave_nodes) = get_existing_cluster(
