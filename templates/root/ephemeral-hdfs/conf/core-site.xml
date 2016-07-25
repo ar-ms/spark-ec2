@@ -6,6 +6,21 @@
 <configuration>
 
   <property>
+    <name>fs.s3.impl</name>
+    <value>org.apache.hadoop.fs.s3.S3FileSystem</value>
+  </property>
+
+  <property>
+    <name>fs.s3n.impl</name>
+    <value>org.apache.hadoop.fs.s3native.NativeS3FileSystem</value>
+  </property>
+
+  <property>
+    <name>fs.s3a.impl</name>
+    <value>org.apache.hadoop.fs.s3a.S3AFileSystem</value>
+</property>
+
+  <property>
     <name>hadoop.tmp.dir</name>
     <value>/mnt/ephemeral-hdfs</value>
   </property>
@@ -51,12 +66,32 @@
   </property>
 
   <property>
+    <name>fs.s3.awsAccessKeyId</name>
+    <value>{{aws_access_key_id}}</value>
+  </property>
+
+  <property>
+    <name>fs.s3.awsSecretAccessKey</name>
+    <value>{{aws_secret_access_key}}</value>
+  </property>
+
+  <property>
     <name>fs.s3n.awsAccessKeyId</name>
     <value>{{aws_access_key_id}}</value>
   </property>
 
   <property>
     <name>fs.s3n.awsSecretAccessKey</name>
+    <value>{{aws_secret_access_key}}</value>
+  </property>
+
+  <property>
+    <name>fs.s3a.access.key</name>
+    <value>{{aws_access_key_id}}</value>
+  </property>
+
+  <property>
+    <name>fs.s3a.secret.key</name>
     <value>{{aws_secret_access_key}}</value>
   </property>
 
