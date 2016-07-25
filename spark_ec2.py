@@ -31,6 +31,7 @@ import pipes
 import random
 import shutil
 import string
+import json
 from stat import S_IRUSR
 import subprocess
 import sys
@@ -165,6 +166,93 @@ from boto import ec2
 
 class UsageError(Exception):
     pass
+
+
+def process_conf_file(file_path, parser):
+    """
+    Load configuration file and extract arguments.
+    """
+    configuration = {}
+    try:
+        with open(file_path) as configuration_file:
+            configuration = json.load(configuration_file)
+    except Exception as e:
+        err_msg = " ".join([str(err) for err in e.args])
+        print("[!] Error when loading config file: {}".format(err_msg), file=stderr)
+        sys.exit(1)
+
+    # True / False options parameters
+    json_special_params = {
+        "no_ganglia": "--no-ganglia",
+        "delete_groups": "--delete_groups",
+        "private_ips": "--private-ips",
+        "resume": "--resume",
+        "use_existing_master": "--use-existing-master",
+        "copy_aws_credentials": "--copy-aws-credentials",
+    }
+
+    # Options parameters followed by values
+    json_params = {
+         "slaves": "--slaves",
+        "wait": "--wait",
+        "key_pair": "--key-pair",
+        "identity_file": "--identity-file",
+        "profile": "--profile",
+        "instance_type": "--instance-type",
+        "master_instance_type": "--master-instance-type",
+        "region": "--region",
+        "zone": "--zone",
+        "ami": "--ami",
+        "spark_version": "--spark-version",
+        "spark_git_repo": "--spark-git-repo",
+        "spark_ec2_git_repo": "--spark-ec2-git-repo",
+        "spark_ec2_git_branch": "--spark-ec2-git-branch",
+        "deploy_root_dir": "--deploy-root-dir",
+        "hadoop_major_version": "--hadoop-major-version",
+        "D": "-D",
+        "ebs_vol_size": "--ebs-vol-size",
+        "ebs_vol_type": "--ebs-vol-type",
+        "ebs_vol_num": "--ebs-vol-num",
+        "placement_group": "--placement-group",
+        "swap": "--swap",
+        "spot_price": "--spot-price",
+        "user": "--user",
+        "worker_instances": "--worker-instances",
+        "master_opts": "--master-opts",
+        "user_data": "--user-data",
+        "authorized_address": "--authorized-address",
+        "additional_security_group": "--additional-security-group",
+        "additional_tags": "--additional-tags",
+        "subnet_id": "--subnet-id",
+        "vpc_id": "--vpc-id",
+        "instance_initiated_shutdown_behavior": "--instance-initiated-shutdown-behavior",
+        "instance_profile_name": "--instance-profile-name"
+    }
+
+    # Path to identity file (located in keys folder under current location of spark-ec2 file)
+    configuration["identity_file"] = os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                                                  "keys",
+                                                  configuration["identity_file"])
+
+    if "credentials" in configuration:
+        try:
+            key_id = configuration["credentials"]["aws_access_key_id"]
+            access_key = configuration["credentials"]["aws_secret_access_key"]
+            os.environ["AWS_ACCESS_KEY_ID"] = key_id
+            os.environ["AWS_SECRET_ACCESS_KEY"] =  access_key
+        except KeyError:
+            pass
+
+    args = []
+    for op in configuration:
+        if op in json_special_params and configuration[op]:
+            args.append(json_special_params[op])
+        elif op in json_params:
+            option_value = "{opt} {val}".format(opt=json_params[op],
+                                                val=configuration[op])
+            args.extend(option_value.split())
+    new_opts, _ = parser.parse_args(args)
+    return new_opts
 
 
 # Configure and parse our command-line arguments
@@ -327,12 +415,18 @@ def parse_args():
     parser.add_option(
         "--instance-profile-name", default=None,
         help="IAM profile name to launch instances under")
+    parser.add_option("-c", "--conf-file", default=None,
+                        help="Specify config file", metavar="FILE")
 
     (opts, args) = parser.parse_args()
+
     if len(args) != 2:
         parser.print_help()
         sys.exit(1)
     (action, cluster_name) = args
+
+    if opts.conf_file:
+        opts = process_conf_file(opts.conf_file, parser)
 
     # Boto config check
     # http://boto.cloudhackers.com/en/latest/boto_config_tut.html
