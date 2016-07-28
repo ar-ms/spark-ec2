@@ -173,7 +173,7 @@ def parse_args():
         prog="spark-ec2",
         version="%prog {v}".format(v=SPARK_EC2_VERSION),
         usage="%prog [options] <action> <cluster_name>\n\n"
-        + "<action> can be: launch, destroy, login, stop, start, get-master, reboot-slaves")
+        + "<action> can be: launch, destroy, login, stop, start, get-master, reboot-slaves, add-slaves, remove-slaves")
 
     parser.add_option(
         "-s", "--slaves", type="int", default=1,
