@@ -145,3 +145,32 @@ tar xvzf scala-*.tgz > /tmp/spark-ec2_scala.log
 sudo rm scala-*.tgz
 mv `ls -d scala-* | grep -v ec2` scala
 popd > /dev/null
+
+
+###
+# GANGLIA INSTALLATION
+###
+# NOTE: Remove all rrds which might be around from an earlier run
+rm -rf /var/lib/ganglia/rrds/*
+rm -rf /mnt/ganglia/rrds/*
+
+# Make sure rrd storage directory has right permissions
+mkdir -p /mnt/ganglia/rrds
+chown -R nobody:nobody /mnt/ganglia/rrds
+
+# Install ganglia
+GANGLIA_PACKAGES="ganglia ganglia-web ganglia-gmond ganglia-gmetad"
+
+if ! rpm --quiet -q $GANGLIA_PACKAGES; then
+  yum install -q -y $GANGLIA_PACKAGES;
+fi
+
+# Install gmond for python exentention
+pushd > /dev/null
+wget ftp://195.220.108.108/linux/sourceforge/g/ga/ganglia/ganglia%20monitoring%20core/3.4.0/RHEL6-RPMS/ganglia-gmond-modules-python-3.4.0-1.x86_64.rmp
+rpm -i ganglia-gmond-modules-python-3.4.0-1.x86_64.rpm
+popd > /dev/null
+
+# Post-package installation : Symlink /var/lib/ganglia/rrds to /mnt/ganglia/rrds
+rmdir /var/lib/ganglia/rrds
+ln -s /mnt/ganglia/rrds /var/lib/ganglia/rrds
